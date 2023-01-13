@@ -31,7 +31,11 @@ async fn main() {
                 let population = u64::from_str_radix(&path[1..], 16)
                     .ok()
                     .and_then(|index| H3Cell::try_from(index).ok())
-                    .and_then(|cell| map.get(cell).cloned());
+                    .and_then(|cell| {
+                        map.reduce(cell, |_resolution, cells| {
+                            cells.iter().sum::<f64>() / cells.len() as f64
+                        })
+                    });
                 async move {
                     match population {
                         Some(pop) => {

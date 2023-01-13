@@ -503,7 +503,7 @@ dependencies = [
 [[package]]
 name = "hextree"
 version = "0.1.0"
-source = "git+https://github.com/JayKickliter/HexTree.git?rev=ca7d1dac68fc01a1b0bfe48f6481cb23d9d23b28#ca7d1dac68fc01a1b0bfe48f6481cb23d9d23b28"
+source = "git+https://github.com/JayKickliter/HexTree.git?rev=83441a869bb4536a5e3cbe1f2ead290dc750f519#83441a869bb4536a5e3cbe1f2ead290dc750f519"
 dependencies = [
  "h3ron",
  "serde",
