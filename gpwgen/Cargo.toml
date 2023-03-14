@@ -16,6 +16,7 @@ anyhow = "*"
 byteorder = "*"
 clap = {version = "*", features = ["derive"]}
 geo = "*"
+h3ron = "*"
 hextree = "*"
 rayon = "*"
 
