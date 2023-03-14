@@ -1,3 +1,7 @@
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian as LE, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
@@ -12,12 +16,6 @@ use std::{
     io::{BufReader, BufWriter, ErrorKind},
     path::PathBuf,
 };
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
 
 fn main() -> Result<()> {
     let args = Args::parse();
