@@ -1,10 +1,14 @@
 #![deny(clippy::unwrap_used)]
 
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 mod options;
 use anyhow::Result;
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 use clap::Parser;
-use hextree::{h3ron::H3Cell, HexTreeMap};
+use hextree::{Cell, HexTreeMap};
 use hyper::{
     body::Body,
     service::{make_service_fn, service_fn},
@@ -22,12 +26,6 @@ use std::{
     thread,
     time::Duration,
 };
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,11 +41,9 @@ async fn main() -> Result<()> {
                 let path = req.uri().path();
                 let population = u64::from_str_radix(&path[1..], 16)
                     .ok()
-                    .and_then(|index| H3Cell::try_from(index).ok())
+                    .and_then(|index| Cell::try_from(index).ok())
                     .and_then(|cell| {
-                        map.reduce(cell, |_resolution, cells| {
-                            cells.iter().sum::<f32>()
-                        })
+                        map.reduce(cell, |_resolution, cells| cells.iter().sum::<f32>())
                     });
                 async move {
                     match population {
@@ -94,7 +90,7 @@ fn deserialize_hexmap(src_file: File) -> Result<HexTreeMap<f32>> {
             loop {
                 match (rdr.read_u64::<LE>(), rdr.read_f32::<LE>()) {
                     (Ok(h3_index), Ok(val)) => {
-                        let cell = H3Cell::try_from(h3_index)
+                        let cell = Cell::try_from(h3_index)
                             .expect("serialized hexmap should only contain valid indices");
                         map.insert(cell, val);
                         idx_val_pairs_processed.fetch_add(1, Ordering::Relaxed);

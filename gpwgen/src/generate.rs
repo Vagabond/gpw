@@ -1,6 +1,5 @@
 use crate::gpwascii::{GpwAscii, GpwAsciiHeader};
 use geo::{coord, line_string, Polygon};
-use hextree::h3ron;
 use rayon::prelude::*;
 use std::io::Write;
 
@@ -27,7 +26,7 @@ pub fn tessalate_grid(header: &GpwAsciiHeader, row: usize, col: usize) -> Vec<u6
     );
     // Tesselate at res 10 so we can handle the two coordinate systems
     // drifting.
-    let hexes = h3ron::polygon_to_cells(&grid_cell_poly, 10).unwrap();
+    let hexes = h3ron::to_h3::polygon_to_cells(&grid_cell_poly, 10).unwrap();
     hexes.iter().map(|hex| *hex).collect()
 }
 

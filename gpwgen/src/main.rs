@@ -1,3 +1,7 @@
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian as LE, ReadBytesExt, WriteBytesExt};
 use clap::Parser;
@@ -6,23 +10,12 @@ use gpwgen::{
     generate::gen_to_disk,
     gpwascii::GpwAscii,
 };
-use hextree::{
-    compaction::Compactor,
-    h3ron::{FromH3Index, H3Cell},
-    HexTreeMap,
-};
+use hextree::{compaction::Compactor, Cell, HexTreeMap};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, ErrorKind},
     path::PathBuf,
 };
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -95,7 +88,7 @@ fn combine(
         loop {
             match (rdr.read_u64::<LE>(), rdr.read_f32::<LE>()) {
                 (Ok(h3_index), Ok(val)) => {
-                    let cell = H3Cell::from_h3index(h3_index);
+                    let cell = Cell::from_raw(h3_index)?;
                     map.insert(cell, val)
                 }
                 (Err(e), _) if e.kind() == ErrorKind::UnexpectedEof => break,
@@ -111,7 +104,7 @@ fn combine(
 
     let mut wtr = BufWriter::new(output_file);
     for (cell, val) in map.iter() {
-        wtr.write_u64::<LE>(**cell)?;
+        wtr.write_u64::<LE>(cell.into_raw())?;
         wtr.write_f32::<LE>(*val)?;
     }
 
