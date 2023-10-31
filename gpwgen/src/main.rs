@@ -6,11 +6,7 @@ use gpwgen::{
     generate::gen_to_disk,
     gpwascii::GpwAscii,
 };
-use hextree::{
-    compaction::Compactor,
-    h3ron::{FromH3Index, H3Cell},
-    HexTreeMap,
-};
+use hextree::{compaction::Compactor, Cell, HexTreeMap};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, ErrorKind},
@@ -87,14 +83,16 @@ fn combine(
         .collect::<std::io::Result<Vec<File>>>()?;
     let output_file = File::create(output)?;
 
-    let mut map: HexTreeMap<f32, _> = HexTreeMap::with_compactor(SummationCompactor { resolution });
+    let mut map: HexTreeMap<f32, _> = HexTreeMap::with_compactor(SummationCompactor {
+        resolution: resolution.into(),
+    });
 
     for source in sources {
         let mut rdr = BufReader::new(source);
         loop {
             match (rdr.read_u64::<LE>(), rdr.read_f32::<LE>()) {
                 (Ok(h3_index), Ok(val)) => {
-                    let cell = H3Cell::from_h3index(h3_index);
+                    let cell = Cell::try_from(h3_index)?;
                     map.insert(cell, val)
                 }
                 (Err(e), _) if e.kind() == ErrorKind::UnexpectedEof => break,
@@ -110,7 +108,7 @@ fn combine(
 
     let mut wtr = BufWriter::new(output_file);
     for (cell, val) in map.iter() {
-        wtr.write_u64::<LE>(**cell)?;
+        wtr.write_u64::<LE>(cell.into_raw())?;
         wtr.write_f32::<LE>(*val)?;
     }
 
@@ -122,8 +120,8 @@ struct SummationCompactor {
 }
 
 impl Compactor<f32> for SummationCompactor {
-    fn compact(&mut self, res: u8, children: [Option<&f32>; 7]) -> Option<f32> {
-        if res < self.resolution {
+    fn compact(&mut self, cell: Cell, children: [Option<&f32>; 7]) -> Option<f32> {
+        if cell.res() < self.resolution {
             return None;
         }
         if let [Some(v0), Some(v1), Some(v2), Some(v3), Some(v4), Some(v5), Some(v6)] = children {

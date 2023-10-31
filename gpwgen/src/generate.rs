@@ -1,41 +1,53 @@
 use crate::gpwascii::{GpwAscii, GpwAsciiHeader};
-use geo::{coord, line_string, Polygon};
-use hextree::h3ron;
+use geo::polygon;
+use h3o::{
+    geom::{PolyfillConfig, Polygon, ToCells},
+    Resolution,
+};
 use rayon::prelude::*;
 use std::io::Write;
 
-pub fn tessalate_grid(resolution: u8, header: &GpwAsciiHeader, row: usize, col: usize) -> Vec<u64> {
+pub fn tessalate_grid(
+    resolution: Resolution,
+    header: &GpwAsciiHeader,
+    row: usize,
+    col: usize,
+) -> Vec<u64> {
     let grid_bottom_degs = header.yllcorner + header.cellsize * (header.nrows - row - 1) as f64;
     let grid_top_degs = grid_bottom_degs + header.cellsize;
     let grid_left_degs = header.xllcorner + header.cellsize * col as f64;
     let grid_right_degs = grid_left_degs + header.cellsize;
 
-    let grid_cell_poly = Polygon::new(
-        line_string![
+    let grid_cell_poly = {
+        let grid_cell_poly = polygon![
             // lower-left
-            coord! {x: grid_left_degs, y: grid_bottom_degs},
+            (x: grid_left_degs, y: grid_bottom_degs),
             // lower-right
-            coord! {x: grid_right_degs, y: grid_bottom_degs},
+            (x: grid_right_degs, y: grid_bottom_degs),
             // upper-right
-            coord! {x: grid_right_degs, y: grid_top_degs},
+            (x: grid_right_degs, y: grid_top_degs),
             // upper-left
-            coord! {x: grid_left_degs, y: grid_top_degs},
+            (x: grid_left_degs, y: grid_top_degs),
             // lower-left
-            coord! {x: grid_left_degs, y: grid_bottom_degs}
-        ],
-        vec![],
-    );
-    let mut hexes: Vec<u64> = h3ron::polygon_to_cells(&grid_cell_poly, resolution)
-        .unwrap()
-        .iter()
-        .map(|hex| *hex)
-        .collect();
-    hexes.sort();
-    hexes.dedup();
+            (x: grid_left_degs, y: grid_bottom_degs)
+        ];
+        Polygon::from_degrees(grid_cell_poly).unwrap()
+    };
+
+    let hexes = {
+        let mut hexes: Vec<u64> = grid_cell_poly
+            .to_cells(PolyfillConfig::new(resolution))
+            .map(u64::from)
+            .collect();
+        hexes.sort();
+        hexes.dedup();
+        hexes
+    };
+
     hexes
 }
 
-pub fn gen_to_disk(resolution: u8, src: GpwAscii, dst: &mut impl Write) {
+pub fn gen_to_disk(resolution: Resolution, src: GpwAscii, dst: &mut impl Write) {
     let (tx, rx) = std::sync::mpsc::channel::<(Vec<u64>, f32)>();
 
     let handle = std::thread::spawn(move || {

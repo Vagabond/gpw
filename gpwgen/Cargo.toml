@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 byteorder = { workspace = true }
 clap = { workspace = true }
 geo = { workspace = true }
+h3o = { workspace = true }
 hextree = { workspace = true }
 rayon = { workspace = true }
 

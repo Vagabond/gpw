@@ -4,7 +4,7 @@ mod options;
 use anyhow::Result;
 use byteorder::{LittleEndian as LE, ReadBytesExt};
 use clap::Parser;
-use hextree::{h3ron::H3Cell, HexTreeMap};
+use hextree::{Cell, HexTreeMap};
 use hyper::{
     body::Body,
     service::{make_service_fn, service_fn},
@@ -43,12 +43,8 @@ async fn main() -> Result<()> {
                 let path = req.uri().path();
                 let population = u64::from_str_radix(&path[1..], 16)
                     .ok()
-                    .and_then(|index| H3Cell::try_from(index).ok())
-                    .and_then(|cell| {
-                        map.reduce(cell, |_resolution, cells| {
-                            cells.iter().sum::<f32>()
-                        })
-                    });
+                    .and_then(|index| Cell::try_from(index).ok())
+                    .map(|cell| map.subtree_iter(cell).map(|(_cell, pop)| pop).sum::<f32>());
                 async move {
                     match population {
                         Some(pop) => {
@@ -94,7 +90,7 @@ fn deserialize_hexmap(src_file: File) -> Result<HexTreeMap<f32>> {
             loop {
                 match (rdr.read_u64::<LE>(), rdr.read_f32::<LE>()) {
                     (Ok(h3_index), Ok(val)) => {
-                        let cell = H3Cell::try_from(h3_index)
+                        let cell = Cell::try_from(h3_index)
                             .expect("serialized hexmap should only contain valid indices");
                         map.insert(cell, val);
                         idx_val_pairs_processed.fetch_add(1, Ordering::Relaxed);

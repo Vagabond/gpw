@@ -15,7 +15,8 @@ bincode = "*"
 byteorder = "*"
 clap = { version = "*", features = ["derive"] }
 geo = "*"
-hextree = { git = "https://github.com/JayKickliter/HexTree.git", rev = "38d4b1384baccc02de946e084f76ccfb591792e9" }
+h3o = { version = "*", features = ["geo"] }
+hextree = { git = "https://github.com/JayKickliter/HexTree.git", rev = "e6923d6f147e046fead31d9fdd68130c2ec9d8b4" }
 hyper = { version = "*", features = ["server", "http1", "full"] }
 indicatif = "*"
 rayon = "*"
