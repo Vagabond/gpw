@@ -4,7 +4,7 @@ use hextree::h3ron;
 use rayon::prelude::*;
 use std::io::Write;
 
-pub fn tessalate_grid(header: &GpwAsciiHeader, row: usize, col: usize) -> Vec<u64> {
+pub fn tessalate_grid(resolution: u8, header: &GpwAsciiHeader, row: usize, col: usize) -> Vec<u64> {
     let grid_bottom_degs = header.yllcorner + header.cellsize * (header.nrows - row - 1) as f64;
     let grid_top_degs = grid_bottom_degs + header.cellsize;
     let grid_left_degs = header.xllcorner + header.cellsize * col as f64;
@@ -25,13 +25,17 @@ pub fn tessalate_grid(header: &GpwAsciiHeader, row: usize, col: usize) -> Vec<u6
         ],
         vec![],
     );
-    // Tesselate at res 10 so we can handle the two coordinate systems
-    // drifting.
-    let hexes = h3ron::polygon_to_cells(&grid_cell_poly, 10).unwrap();
-    hexes.iter().map(|hex| *hex).collect()
+    let mut hexes: Vec<u64> = h3ron::polygon_to_cells(&grid_cell_poly, resolution)
+        .unwrap()
+        .iter()
+        .map(|hex| *hex)
+        .collect();
+    hexes.sort();
+    hexes.dedup();
+    hexes
 }
 
-pub fn gen_to_disk(src: GpwAscii, dst: &mut impl Write) {
+pub fn gen_to_disk(resolution: u8, src: GpwAscii, dst: &mut impl Write) {
     let (tx, rx) = std::sync::mpsc::channel::<(Vec<u64>, f32)>();
 
     let handle = std::thread::spawn(move || {
@@ -44,7 +48,7 @@ pub fn gen_to_disk(src: GpwAscii, dst: &mut impl Write) {
                     .enumerate()
                     .for_each_with(tx.clone(), |tx, (col_idx, sample)| {
                         if let Some(val) = sample {
-                            let h3_indicies = tessalate_grid(header, row_idx, col_idx);
+                            let h3_indicies = tessalate_grid(resolution, header, row_idx, col_idx);
                             tx.send((h3_indicies, *val)).unwrap();
                         }
                     })
