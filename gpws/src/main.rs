@@ -44,6 +44,10 @@ async fn main() -> Result<()> {
                 let population = u64::from_str_radix(&path[1..], 16)
                     .ok()
                     .and_then(|index| Cell::try_from(index).ok())
+                    .and_then(|target_cell| match map.get(target_cell) {
+                        Some((cell, _)) if target_cell.res() > cell.res() => None,
+                        _ => Some(target_cell),
+                    })
                     .map(|cell| map.subtree_iter(cell).map(|(_cell, pop)| pop).sum::<f32>());
                 async move {
                     match population {
