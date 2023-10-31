@@ -7,10 +7,11 @@ use gpwgen::{
     gpwascii::GpwAscii,
 };
 use hextree::{compaction::Compactor, Cell, HexTreeMap};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, ErrorKind},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -39,7 +40,7 @@ fn tessellate(
     // otherwise fail fast.
     let files = sources
         .iter()
-        .map(|src_path| -> Result<(File, File)> {
+        .map(|src_path| -> Result<(&Path, File, File)> {
             let src_file = File::open(src_path)?;
 
             // Create the path to the output file with H3 resolution added and
@@ -55,18 +56,43 @@ fn tessellate(
                 dst
             };
             let dst_file = File::create(dst_path)?;
-            Ok((src_file, dst_file))
+            Ok((src_path, src_file, dst_file))
         })
-        .collect::<Result<Vec<(File, File)>>>()?;
+        .collect::<Result<Vec<(&Path, File, File)>>>()?;
 
-    for (src_file, dst_file) in files {
+    for (n, (src_file_path, src_file, dst_file)) in files.iter().enumerate() {
         let mut rdr = BufReader::new(src_file);
         let mut dst = BufWriter::new(dst_file);
         let data = GpwAscii::parse(&mut rdr).unwrap();
-        gen_to_disk(resolution, data, &mut dst)
+        let n = n + 1;
+        let m = files.len();
+        let pb = make_progress_bar(src_file_path, n, m, data.len() as u64);
+        gen_to_disk(resolution, data, pb, &mut dst)
     }
 
     Ok(())
+}
+
+/// Returns a progress bar object for the given parquet file and name.
+fn make_progress_bar(path: &Path, n: usize, m: usize, total_cnt: u64) -> ProgressBar {
+    #[allow(clippy::cast_sign_loss)]
+    let pb = ProgressBar::new(total_cnt);
+    pb.set_prefix(format!(
+        "({n}/{m}) {}:\n",
+        path.file_name().unwrap().to_string_lossy()
+    ));
+    pb.set_style(
+        ProgressStyle::with_template("{prefix}[{wide_bar:.cyan/blue}]{eta_precise}")
+            .expect("incorrect progress bar format string")
+            .with_key(
+                "eta",
+                |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap();
+                },
+            )
+            .progress_chars("#>-"),
+    );
+    pb
 }
 
 fn combine(

@@ -4,6 +4,7 @@ use h3o::{
     geom::{PolyfillConfig, Polygon, ToCells},
     Resolution,
 };
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::io::Write;
 
@@ -47,7 +48,7 @@ pub fn tessalate_grid(
     hexes
 }
 
-pub fn gen_to_disk(resolution: Resolution, src: GpwAscii, dst: &mut impl Write) {
+pub fn gen_to_disk(resolution: Resolution, src: GpwAscii, pb: ProgressBar, dst: &mut impl Write) {
     let (tx, rx) = std::sync::mpsc::channel::<(Vec<u64>, f32)>();
 
     let handle = std::thread::spawn(move || {
@@ -74,6 +75,7 @@ pub fn gen_to_disk(resolution: Resolution, src: GpwAscii, dst: &mut impl Write) 
             dst.write_all(&h3_index.to_le_bytes()).unwrap();
             dst.write_all(&scaled_val_bytes).unwrap();
         }
+        pb.inc(1);
     }
     handle.join().unwrap();
 }

@@ -457,6 +457,7 @@ dependencies = [
  "geo",
  "h3o",
  "hextree",
+ "indicatif",
  "rayon",
  "tikv-jemallocator",
 ]
