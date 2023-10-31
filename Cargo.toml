@@ -1,4 +1,6 @@
 [workspace]
+resolver = "2"
+
 members = [
     "gpwgen",
     "gpws",
@@ -6,3 +8,16 @@ members = [
 
 [profile.release]
 debug = true
+
+[workspace.dependencies]
+anyhow = "*"
+bincode = "*"
+byteorder = "*"
+clap = { version = "*", features = ["derive"] }
+geo = "*"
+hextree = { git = "https://github.com/JayKickliter/HexTree.git", rev = "38d4b1384baccc02de946e084f76ccfb591792e9" }
+hyper = { version = "*", features = ["server", "http1", "full"] }
+indicatif = "*"
+rayon = "*"
+tikv-jemallocator = "*"
+tokio = { version = "*", features = ["full"] }

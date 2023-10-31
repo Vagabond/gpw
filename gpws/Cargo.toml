@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "*"
-bincode = "*"
-byteorder = "*"
-clap = {version = "*", features = ["derive"]}
-hextree = {git = "https://github.com/JayKickliter/HexTree.git", rev = "38d4b1384baccc02de946e084f76ccfb591792e9"}
-hyper = {version = "*", features = ["server", "http1", "full"]}
-indicatif = "*"
-tokio = {version = "*", features = ["full"]}
+anyhow = { workspace = true }
+bincode = { workspace = true }
+byteorder = { workspace = true }
+clap = { workspace = true }
+hextree = { workspace = true }
+hyper = { workspace = true }
+indicatif = { workspace = true }
+tokio = { workspace = true }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = "0.5"
+tikv-jemallocator = { workspace = true }

@@ -12,12 +12,12 @@ name = "gpwgen"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "*"
-byteorder = "*"
-clap = {version = "*", features = ["derive"]}
-geo = "*"
-hextree = "*"
-rayon = "*"
+anyhow = { workspace = true }
+byteorder = { workspace = true }
+clap = { workspace = true }
+geo = { workspace = true }
+hextree = { workspace = true }
+rayon = { workspace = true }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = "0.5"
+tikv-jemallocator = { workspace = true }

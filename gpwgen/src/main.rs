@@ -23,7 +23,6 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
 fn main() -> Result<()> {
     let args = Args::parse();
     match args {
@@ -68,7 +67,7 @@ fn tessellate(
         let mut rdr = BufReader::new(src_file);
         let mut dst = BufWriter::new(dst_file);
         let data = GpwAscii::parse(&mut rdr).unwrap();
-        gen_to_disk(data, &mut dst)
+        gen_to_disk(resolution, data, &mut dst)
     }
 
     Ok(())
