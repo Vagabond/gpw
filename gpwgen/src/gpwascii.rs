@@ -124,6 +124,14 @@ pub struct GpwAscii {
 }
 
 impl GpwAscii {
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.data
+            .iter()
+            .map(|row| row.iter().flatten().count())
+            .sum()
+    }
+
     pub fn parse<R: std::io::Read>(rdr: &mut BufReader<R>) -> Result<Self, GpwError> {
         let header = GpwAsciiHeader::parse(rdr)?;
         let mut data = Vec::with_capacity(header.nrows);

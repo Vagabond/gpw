@@ -6,15 +6,12 @@ use gpwgen::{
     generate::gen_to_disk,
     gpwascii::GpwAscii,
 };
-use hextree::{
-    compaction::Compactor,
-    h3ron::{FromH3Index, H3Cell},
-    HexTreeMap,
-};
+use hextree::{compaction::Compactor, Cell, HexTreeMap};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     fs::File,
     io::{BufReader, BufWriter, ErrorKind},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -22,7 +19,6 @@ use tikv_jemallocator::Jemalloc;
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
-
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -44,7 +40,7 @@ fn tessellate(
     // otherwise fail fast.
     let files = sources
         .iter()
-        .map(|src_path| -> Result<(File, File)> {
+        .map(|src_path| -> Result<(&Path, File, File)> {
             let src_file = File::open(src_path)?;
 
             // Create the path to the output file with H3 resolution added and
@@ -60,18 +56,37 @@ fn tessellate(
                 dst
             };
             let dst_file = File::create(dst_path)?;
-            Ok((src_file, dst_file))
+            Ok((src_path, src_file, dst_file))
         })
-        .collect::<Result<Vec<(File, File)>>>()?;
+        .collect::<Result<Vec<(&Path, File, File)>>>()?;
 
-    for (src_file, dst_file) in files {
+    for (n, (src_file_path, src_file, dst_file)) in files.iter().enumerate() {
         let mut rdr = BufReader::new(src_file);
         let mut dst = BufWriter::new(dst_file);
         let data = GpwAscii::parse(&mut rdr).unwrap();
-        gen_to_disk(data, &mut dst)
+        let n = n + 1;
+        let m = files.len();
+        let progress_bar = make_progress_bar(src_file_path, n, m, data.len() as u64);
+        gen_to_disk(resolution, data, progress_bar, &mut dst)
     }
 
     Ok(())
+}
+
+/// Returns a progress bar object for the given parquet file and name.
+fn make_progress_bar(path: &Path, n: usize, m: usize, total_cnt: u64) -> ProgressBar {
+    #[allow(clippy::cast_sign_loss)]
+    let progress_bar = ProgressBar::new(total_cnt);
+    progress_bar.set_prefix(format!(
+        "({n}/{m}) {}:\n",
+        path.file_name().unwrap().to_string_lossy()
+    ));
+    progress_bar.set_style(
+        ProgressStyle::with_template("{prefix}[{wide_bar:.cyan/blue}]{eta_precise}")
+            .expect("incorrect progress bar format string")
+            .progress_chars("#>-"),
+    );
+    progress_bar
 }
 
 fn combine(
@@ -83,20 +98,33 @@ fn combine(
 ) -> Result<()> {
     // Open all source files at the same time, otherwise fail fast.
     let sources = sources
-        .iter()
-        .map(File::open)
-        .collect::<std::io::Result<Vec<File>>>()?;
-    let output_file = File::create(output)?;
+        .into_iter()
+        .map(|path| File::open(&path).map(|file| (path, file)))
+        .collect::<std::io::Result<Vec<(PathBuf, File)>>>()?;
 
-    let mut map: HexTreeMap<f32, _> = HexTreeMap::with_compactor(SummationCompactor { resolution });
+    let output_file = File::create(&output)?;
+    let m = sources.len() + 1;
 
-    for source in sources {
+    let mut map: HexTreeMap<f32, _> = HexTreeMap::with_compactor(SummationCompactor {
+        resolution: resolution.into(),
+    });
+
+    for (n, (path, source)) in sources.iter().enumerate() {
+        let progress_bar = {
+            let item_cnt = path.metadata()?.len()
+                / (std::mem::size_of::<u64>() + std::mem::size_of::<f32>()) as u64;
+            let n = n + 1;
+            make_progress_bar(path, n, m, item_cnt)
+        };
+
         let mut rdr = BufReader::new(source);
+
         loop {
             match (rdr.read_u64::<LE>(), rdr.read_f32::<LE>()) {
                 (Ok(h3_index), Ok(val)) => {
-                    let cell = H3Cell::from_h3index(h3_index);
-                    map.insert(cell, val)
+                    let cell = Cell::try_from(h3_index)?;
+                    map.insert(cell, val);
+                    progress_bar.inc(1);
                 }
                 (Err(e), _) if e.kind() == ErrorKind::UnexpectedEof => break,
                 (err @ Err(_), _) => {
@@ -109,10 +137,18 @@ fn combine(
         }
     }
 
+    let progress_bar = {
+        let item_cnt = map.len() / (std::mem::size_of::<u64>() + std::mem::size_of::<f32>());
+        let n = sources.len() + 1;
+        make_progress_bar(&output, n, m, item_cnt as u64)
+    };
+
     let mut wtr = BufWriter::new(output_file);
+
     for (cell, val) in map.iter() {
-        wtr.write_u64::<LE>(**cell)?;
+        wtr.write_u64::<LE>(cell.into_raw())?;
         wtr.write_f32::<LE>(*val)?;
+        progress_bar.inc(1);
     }
 
     Ok(())
@@ -123,8 +159,8 @@ struct SummationCompactor {
 }
 
 impl Compactor<f32> for SummationCompactor {
-    fn compact(&mut self, res: u8, children: [Option<&f32>; 7]) -> Option<f32> {
-        if res < self.resolution {
+    fn compact(&mut self, cell: Cell, children: [Option<&f32>; 7]) -> Option<f32> {
+        if cell.res() < self.resolution {
             return None;
         }
         if let [Some(v0), Some(v1), Some(v2), Some(v3), Some(v4), Some(v5), Some(v6)] = children {

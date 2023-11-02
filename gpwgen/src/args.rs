@@ -1,4 +1,5 @@
 use clap::Parser;
+use h3o::Resolution;
 
 #[derive(Parser, Debug)]
 pub enum Args {
@@ -11,8 +12,8 @@ pub enum Args {
 #[derive(Parser, Debug)]
 pub struct Tessellate {
     /// Intermediate H3 resolution.
-    #[arg(short, long, default_value_t = 10)]
-    pub resolution: u8,
+    #[arg(short, long, default_value_t = Resolution::Ten)]
+    pub resolution: Resolution,
     /// Input GPW ASCII file.
     pub sources: Vec<std::path::PathBuf>,
     /// Output directory.
@@ -25,8 +26,8 @@ pub struct Tessellate {
 #[derive(Parser, Debug)]
 pub struct Combine {
     /// H3 resolution.
-    #[arg(short, long, default_value_t = 8)]
-    pub resolution: u8,
+    #[arg(short, long, default_value_t = Resolution::Eight)]
+    pub resolution: Resolution,
     /// h3tess source files.
     pub sources: Vec<std::path::PathBuf>,
     /// Output file.
